@@ -163,7 +163,7 @@ SDN-MQ service.
 
 Download the SDN-MQ release package from GitHub:
 
-???
+https://github.com/duerrfk/sdn-mq/releases
 
 Install it to a folder on the same machine as ActiveMQ (of course, you
 can also install it to a different machine, however, then you have to
@@ -201,9 +201,9 @@ You will find these libraries in public Maven repositories or alternatively
 as part of the SDN-MQ release package (see above) in the folder
 opendaylight-sdnmq/plugins/.
 
-3. SDN-MQ source code from GitHub
+3. SDN-MQ source code from GitHub:
 
-    $ git clone https://github.com/duerrfk/SDN-MQ.git
+        $ git clone https://github.com/duerrfk/sdn-mq.git
 
 5. Maven and Java to compile SDN-MQ (we assume that you have already
 installed Maven and Java) 
