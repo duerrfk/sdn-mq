@@ -74,8 +74,8 @@ Packet-in events can be filters using JMS selectors like this one (you
 better should use the pre-defined enumerations, however, this plain
 text here better shows the idea):
 
-String selector = "etherType=0x0800 AND nwSrc='10.0.0.1'";
-subscriber = session.createSubscriber(packetinTopic, selector,  false);
+    String selector = "etherType=0x0800 AND nwSrc='10.0.0.1'";
+    subscriber = session.createSubscriber(packetinTopic, selector,  false);
 
 Prefix matches are also supported through the LIKE operator and binary
 address attributes!
@@ -83,20 +83,173 @@ address attributes!
 Flow Programming
 ----------------
 
-Please have a look at file
-
-jms-demoapps/src/main/java/org/sdnmq/jms_demoapps/SimpleStaticFlowProgrammer.java
-
-from the source code distribution.
+    // First, create the flow specification as JSON object.
+    // A flow consists of a match, set of actions, and priority.        
+    // The match: for a list of all possible match attributes, cf. class MatchAttributes.
+    JSONObject matchJson = new JSONObject();
+    String inPort = "1";
+    matchJson.put(MatchAttributes.Keys.INGRESS_PORT.toJSON(), inPort);
+        
+    // The action: for a list of all possible action attributes, cf. class ActionAttributes. 
+    JSONObject actionJson = new JSONObject();
+    actionJson.put(ActionAttributes.Keys.ACTION.toJSON(), ActionAttributes.ActionTypeValues.DROP.toJSON());
+        
+    // A flow can have a list of different actions. We specify a list of actions
+    // as JSON array (here, the array only contains one action).
+    JSONArray actionsJson = new JSONArray();
+    actionsJson.put(actionJson);
+        
+    // The flow consists of a match specification, action specification, and priority
+    // (cf. class FlowAttributes)
+    JSONObject flowJson = new JSONObject();
+    flowJson.put(FlowAttributes.Keys.MATCH.toJSON(), matchJson);
+    flowJson.put(FlowAttributes.Keys.ACTIONS.toJSON(), actionsJson);
+    flowJson.put(FlowAttributes.Keys.PRIORITY.toJSON(), 0);
+        
+    // We need to tell the flow programmer, which node to program.
+    // In OpenDaylight, a node is identified by node id and node type (like "OF" for OpenFlow).
+    // For a list of all node attributes, cf. class NodeAttributes.
+    // For a list of possible node types, cf. class NodeAttributes.TypeValues.
+        
+    JSONObject nodeJson = new JSONObject();
+    String nodeId = "00:00:00:00:00:00:00:01";
+    nodeJson.put(NodeAttributes.Keys.ID.toJSON(), nodeId);
+    nodeJson.put(NodeAttributes.Keys.TYPE.toJSON(), NodeAttributes.TypeValues.OF.toJSON());
+        
+    // Create the FlowProgrammer request in JSON representation.
+    // To add a flow, we need to specify the command, the flow, and the node to be programmed
+    // (cf. class FlowProgrammerRequestAttributes).
+        
+    JSONObject addRequestJson = new JSONObject();
+    // All possible commands are specified in FlowProgrammerRequestAttributes.CommandValues
+    addRequestJson.put(FlowProgrammerRequestAttributes.Keys.COMMAND.toJSON(), 
+        FlowProgrammerRequestAttributes.CommandValues.ADD.toJSON());
+    String flowName = "DemoFlow";
+    addRequestJson.put(FlowProgrammerRequestAttributes.Keys.FLOW_NAME.toJSON(), flowName);
+    addRequestJson.put(FlowProgrammerRequestAttributes.Keys.FLOW.toJSON(), flowJson);
+    addRequestJson.put(FlowProgrammerRequestAttributes.Keys.NODE.toJSON(), nodeJson);
+        
+    // Program the flow by sending the request to the flow programmer queue.
+       
+    System.out.println("Programming flow with following request: ");
+    System.out.println(addRequestJson.toString());
+        
+    try {
+        TextMessage msg = session.createTextMessage();
+        msg.setText(addRequestJson.toString());
+        sender.send(msg);
+    } catch (JMSException e) {
+        System.err.println(e.getMessage());
+        die(-1);
+    }
+        
+    // Delete the flow again after 10 s.
+  
+    System.out.println("Waiting 30 s ...");        
+    try {
+        Thread.sleep(30000);
+    } catch (InterruptedException e) {}
+      
+    // A delete request just contains the flow name to be deleted together with the delete command.
+        
+    JSONObject deleteRequestJson = new JSONObject();
+    deleteRequestJson.put(FlowProgrammerRequestAttributes.Keys.COMMAND.toJSON(), 
+        FlowProgrammerRequestAttributes.CommandValues.DELETE.toJSON());
+    deleteRequestJson.put(FlowProgrammerRequestAttributes.Keys.FLOW_NAME.toJSON(),
+        flowName);
+        
+    // Delete the flow by sending the delete request to the flow programmer queue.
+        
+    System.out.println("Deleting flow with the following request: ");
+    System.out.println(deleteRequestJson.toString());
+        
+    try {
+        TextMessage msg = session.createTextMessage();
+        msg.setText(deleteRequestJson.toString());
+        sender.send(msg);
+    } catch (JMSException e) {
+        System.err.println(e.getMessage());
+        die(-1);
+    }
 
 Packet Forwarding
 -----------------
 
-Please have a look at file
-
-jms-demoapps/src/main/java/org/sdnmq/jms_demoapps/SimplePacketSender.java
-
-from the source code distribution.
+    // Create packet using OpenDaylight packet classes (or any other packet parser/constructor you like most)
+    // In most use cases, you will not create the complete packet yourself from scratch
+    // but rather use a packet received from a packet-in event as basis. Let's assume that
+    // the received packet-in event looks like this (in JSON representation as delivered by
+    // the packet-in handler):
+    //
+    // {"node":{"id":"00:00:00:00:00:00:00:01","type":"OF"},"ingressPort":"1","protocol":1,
+    // "etherType":2048,"nwDst":"10.0.0.2","packet":"Io6SOMEMOREBASE641Njc=",
+    // "dlDst":"22:8E:AA:EB:68:37","nwSrc":"10.0.0.1","dlSrc":"9A:7E:BA:24:A9:E3"}
+    //
+    // Thus, we can use the "packet" field to re-construct the raw packet data from Base64-encoding:
+    String packetInBase64 = "Io6q62g3mn66JKnjCABFAABUAABAAEABJqcKAAABCgAAAggAGFlGXgABELmmUwAAAAAVaA4AAAAAABAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc=";
+    byte[] packetData = DatatypeConverter.parseBase64Binary(packetInBase64);
+    // Now we can use the OpenDaylight classes to get Java objects for this packet:
+    Ethernet ethPkt = new Ethernet();
+    try {
+        ethPkt.deserialize(packetData, 0, packetData.length*8);
+    } catch (Exception e) {
+        System.err.println("Failed to decode packet");
+        die(-1);
+    }
+    if (ethPkt.getEtherType() == 0x800) {
+        IPv4 ipv4Pkt = (IPv4) ethPkt.getPayload();
+        // We could go on parsing layer by layer ... but you got the idea already I think.
+        // So let's make some change to the packet to make it more interesting:
+        InetAddress newDst = null;
+        try {
+            newDst = InetAddress.getByName("10.0.0.2");
+        } catch (UnknownHostException e) {
+            die(-1);
+        }
+        assert(newDst != null);
+        ipv4Pkt.setDestinationAddress(newDst);
+    }
+    // Now we can get the binary data of the new packet to be forwarded.
+    byte[] pktBinary = null;
+    try {
+        pktBinary = ethPkt.serialize();
+    } catch (PacketException e1) {
+        System.err.println("Failed to serialize packet");
+        die(-1);
+    }
+    assert(pktBinary != null);
+        
+    // Encode packet to Base64 textual representation to be sent in JSON.
+    String pktBase64 = DatatypeConverter.printBase64Binary(pktBinary);
+        
+    // We need to tell the packet forwarder, which node should forward the packet.
+    // In OpenDaylight, a node is identified by node id and node type (like "OF" for OpenFlow).
+    // For a list of all node attributes, cf. class NodeAttributes.
+    // For a list of possible node types, cf. class NodeAttributes.TypeValues.
+    JSONObject nodeJson = new JSONObject();
+    String nodeId = "00:00:00:00:00:00:00:01";
+    nodeJson.put(NodeAttributes.Keys.ID.toJSON(), nodeId);
+    nodeJson.put(NodeAttributes.Keys.TYPE.toJSON(), NodeAttributes.TypeValues.OF.toJSON());
+        
+    // Create a packet forwarding request in JSON representation.
+    // All attributes are described in class PacketForwarderRequestAttributes.
+    JSONObject packetFwdRequestJson = new JSONObject();
+    packetFwdRequestJson.put(PacketForwarderRequestAttributes.Keys.NODE.toJSON(), nodeJson);
+    packetFwdRequestJson.put(PacketForwarderRequestAttributes.Keys.EGRESS_PORT.toJSON(), 1);
+    packetFwdRequestJson.put(PacketForwarderRequestAttributes.Keys.PACKET.toJSON(), pktBase64);
+        
+    // Send the request by posting it to the packet forwarder queue.
+      
+    System.out.println("Sending packet forwarding request: ");
+    System.out.println(packetFwdRequestJson.toString());    
+    try {
+        TextMessage msg = session.createTextMessage();
+        msg.setText(packetFwdRequestJson.toString());
+        sender.send(msg);
+    } catch (JMSException e) {
+        System.err.println(e.getMessage());
+        die(-1);
+    }
 
 Installation
 ============
