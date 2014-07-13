@@ -3,28 +3,19 @@ OpenDaylight SDN controller.
 
 Using SDN-MQ has several advantages:
 
-1. SDN-MQ allows for receiving packet-in events without the need to
-implement OSGi services. This reduces the complexity of implementing your
-own SDN services without sacrificing flexibility.
+1. All messages are consequently based on JSON making message generation and interpretation straightforward.
 
-2. Packet-in events can be filtered using standard JMS selectors. So
-your network control logic only sees what it is really interested in.
+2. SDN-MQ supports proactive and reactive flow programming without the need to implement complex OSGi services.
 
-3. SDN-MQ consequently uses simple textual message formats based on
-JSON, making message interpretation and generation straightforward. So
-you get the simplicitly of popular JSON/HTTP-based APIs, and you'll
-still be able to receive packet-in events (which HTTP interfaces don't
-support due to the request/response nature of HTTP).  
+3. SDN-MQ supports message filtering for packet-in events through standard JMS selectors. So the control application can define, which packet-in events to receive based on packet header fields like source and destination adddresses. According to the publish/subscribe paradigm, multiple control applications can receive the packet-in event notifications for the same packet.
 
-4. Since SDN-MQ is based on textual JSON messages, it is accessible
-through the Streaming Text Oriented Messaging Protocol (STOMP), e.g.,
-using Apache ActiveMQ. This not only allows for Java-JMS clients but
-also clients implemented in C, Ruby, Perl, Python, PHP,
-ActionScript/Flash, Smalltalk, etc. (everything supported by your JMS
-server).
+4. SDN control logic an be distributed horizontally to different hosts for scaling out control logic.
 
-5. SDN-MQ supports essential SDN controller functionalities,
-namely, packet-in events, flow programming, and packet forwarding.
+5.  Although SDN-MQ is based on the Java-based JMS standard, JMS servers such as Apache ActiveMQ support further language-independent protocols like STOMP (Streaming Text Oriented Messaging Protocol). Therefore, cross-language control applications implemented in C++, Python, JavaScipt, etc. are supported.
+
+6. Besides packet-in events and flow programming, SDN-MQ supports further essential functionality such as packet forwarding/injection via the controller.
+
+7. SDN-MQ is open source and licensed through the Eclipse license (similar to OpenDaylight). The full source code is available here at GitHub: https://github.com/duerrfk/sdn-mq.
 
 How to use SDN-MQ
 =================
@@ -65,6 +56,23 @@ Receiving Packet-in Events
                 }
             }
         }    
+    }
+
+A packet-in event has the following JSON format:
+
+    {
+        "node": {
+            "id":"00:00:00:00:00:00:00:01", 
+            "type":"OF"
+        },
+        "ingressPort":"1", 
+        "protocol":1, 
+        "etherType":2048,
+        "nwDst":"10.0.0.2", 
+        "dlDst":"22:8E:AA:EB:68:37", 
+        "nwSrc":"10.0.0.1",
+        "dlSrc":"9A:7E:BA:24:A9:E3",
+        "packet":"Io6q62g3mn66JKnjCABFAABUAABAAEABJqcKAAABCgAAAggAGFlGXgABELmmUwAAAAAVaA4AAAAAABAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc="
     }
 
 Filtering Packet-in Events Using JMS Selectors
@@ -143,7 +151,7 @@ Flow Programming
         die(-1);
     }
         
-    // Delete the flow again after 10 s.
+    // Delete the flow again after 30 s.
   
     System.out.println("Waiting 30 s ...");        
     try {
@@ -172,6 +180,28 @@ Flow Programming
         die(-1);
     }
 
+In JSON, the requests for adding and deleting flows in the above
+example look like this:
+
+    {
+        "node": {
+            "id":"00:00:00:00:00:00:00:01", 
+            "type":"OF"
+        },
+        "flowName":"DemoFlow", 
+        "command":"add", 
+        "flow":{
+            "match":{"ingressPort":"1"},
+            "priority":0,
+            "actions":[{"action":"drop"}]
+        }
+    }
+
+    {
+        "flowName":"DemoFlow",
+        "command":"delete"
+    }
+
 Packet Forwarding
 -----------------
 
@@ -182,7 +212,7 @@ Packet Forwarding
     // the packet-in handler):
     //
     // {"node":{"id":"00:00:00:00:00:00:00:01","type":"OF"},"ingressPort":"1","protocol":1,
-    // "etherType":2048,"nwDst":"10.0.0.2","packet":"Io6SOMEMOREBASE641Njc=",
+    // "etherType":2048,"nwDst":"10.0.0.2","packet":"Io6q62g3mn66JKnjCABFAABUAABAAEABJqcKAAABCgAAAggAGFlGXgABELmmUwAAAAAVaA4AAAAAABAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc=",
     // "dlDst":"22:8E:AA:EB:68:37","nwSrc":"10.0.0.1","dlSrc":"9A:7E:BA:24:A9:E3"}
     //
     // Thus, we can use the "packet" field to re-construct the raw packet data from Base64-encoding:
@@ -251,6 +281,17 @@ Packet Forwarding
         die(-1);
     }
 
+The request for sending a packet looks like this in JSON format:
+
+    {
+        "node": {
+            "id":"00:00:00:00:00:00:00:01",
+            "type":"OF"
+        },
+        "egressPort":1,
+        "packet":"Io6q62g3mn66JKnjCABFAABUAABAAEABJqcKAAABCgAAAggAGFlGXgABELmmUwAAAAAVaA4AAAAAABAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc="
+    }
+
 Installation
 ============
 
@@ -292,7 +333,7 @@ Start ApacheMQ:
 Now, you should be able to access the web-frontend of ActiveMQ with
 your browser (user "admin"; password "admin"):
 
-http://myhost:8161/admin/
+http://myhost:8161/admin
 
 Use this web interface to set up the message queues and topics
 required by SDN-MQ using the following names (see below under
