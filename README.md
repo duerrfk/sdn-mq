@@ -5,13 +5,13 @@ Using SDN-MQ has several advantages:
 
 1. All messages are consequently based on JSON making message generation and interpretation straightforward.
 
-2. SDN-MQ supports proactive and reactive flow programming without the need to implement complex OSGi services.
+2. SDN-MQ supports proactive and reactive flow programming (packet-in events) without the need to implement complex OSGi services.
 
-3. SDN-MQ supports message filtering for packet-in events through standard JMS selectors. So the control application can define, which packet-in events to receive based on packet header fields like source and destination adddresses. According to the publish/subscribe paradigm, multiple control applications can receive the packet-in event notifications for the same packet.
+3. SDN-MQ supports message filtering for packet-in events through standard JMS selectors. The control application can define, which packet-in events to receive based on packet header fields like source and destination adddresses. According to the publish/subscribe paradigm, multiple control applications can receive packet-in event notifications for the same packet.
 
 4. SDN control logic an be distributed horizontally to different hosts for scaling out control logic.
 
-5.  Although SDN-MQ is based on the Java-based JMS standard, JMS servers such as Apache ActiveMQ support further language-independent protocols like STOMP (Streaming Text Oriented Messaging Protocol). Therefore, cross-language control applications implemented in C++, Python, JavaScipt, etc. are supported.
+5.  Although SDN-MQ is based on the Java-based JMS standard, JMS servers such as Apache ActiveMQ support further language-independent protocols like STOMP (Streaming Text Oriented Messaging Protocol). Therefore, cross-language control applications implemented in C++, Python, JavaScript, etc. are supported.
 
 6. Besides packet-in events and flow programming, SDN-MQ supports further essential functionality such as packet forwarding/injection via the controller.
 
